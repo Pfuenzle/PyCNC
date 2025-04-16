@@ -9,26 +9,40 @@ import ctypes
 
 # Raspberry Pi registers
 # https://www.raspberrypi.org/wp-content/uploads/2012/02/BCM2835-ARM-Peripherals.pdf
-RPI1_PERI_BASE = 0x20000000
-RPI2_3_PERI_BASE = 0x3F000000
-# detect board version
-try:
-    with open("/proc/cpuinfo", "r") as f:
-        d = f.read()
-        r = re.search("^Revision\s+:\s+(.+)$", d, flags=re.MULTILINE)
-        h = re.search("^Hardware\s+:\s+(.+)$", d, flags=re.MULTILINE)
-        RPI_1_REVISIONS = ['0002', '0003', '0004', '0005', '0006', '0007',
-                           '0008', '0009', '000d', '000e', '000f', '0010',
-                           '0011', '0012', '0013', '0014', '0015', '900021',
-                           '900032']
-        if h is None:
-            raise ImportError("This is not raspberry pi board.")
-        elif r.group(1) in RPI_1_REVISIONS:
-            PERI_BASE = RPI1_PERI_BASE
-        elif "BCM2" in h.group(1):
-            PERI_BASE = RPI2_3_PERI_BASE
+
+def detect_rpi_peri_base():
+    RPI1_PERI_BASE = 0x20000000
+    RPI2_3_PERI_BASE = 0x3F000000
+    RPI4_5_PERI_BASE = 0xFE000000
+
+    RPI_1_REVISIONS = {
+        "0002", "0003", "0004", "0005", "0006", "0007", "0008", "0009",
+        "000d", "000e", "000f", "0010", "0011", "0012", "0013", "0014", "0015",
+        "900021", "900032"
+    }
+
+    rev_str = rev_str.strip().lower()
+    try:
+        rev = int(rev_str, 16)
+    except ValueError:
+        raise ValueError("Invalid hex string for revision.")
+    if rev & (1 << 23):  # new-style revision
+        processor = (rev >> 12) & 0xF
+        if processor == 3:
+            return RPI4_5_PERI_BASE  # BCM2711 (Pi 4)
+        elif processor == 4:
+            return RPI4_5_PERI_BASE  # BCM2712 (Pi 5)
         else:
-            raise ImportError("Unknown board.")
+            return RPI2_3_PERI_BASE
+    else: # old-style revision
+        if rev_str in RPI_1_REVISIONS:
+            return RPI1_PERI_BASE
+        else:
+            return RPI2_3_PERI_BASE
+
+try:
+    PERI_BASE = detect_rpi_peri_base()
+    print(f"Detected PERI_BASE: {hex(PERI_BASE)}")
 except IOError:
     raise ImportError("/proc/cpuinfo not found. Not Linux device?")
 PAGE_SIZE = 4096
