@@ -21,7 +21,18 @@ def detect_rpi_peri_base():
         "900021", "900032"
     }
 
-    rev_str = rev_str.strip().lower()
+    with open("/proc/cpuinfo", "r") as f:
+        data = f.read()
+        revision_match = re.search(r"^Revision\s+:\s+(.+)$", data, flags=re.MULTILINE)
+        hardware_match = re.search(r"^Hardware\s+:\s+(.+)$", data, flags=re.MULTILINE)
+
+    if hardware_match is None:
+        raise ImportError("This is not a Raspberry Pi board.")
+    
+    if revision_match is None:
+        raise ValueError("Revision not found in /proc/cpuinfo.")
+
+    rev_str = revision_match.group(1).strip().lower()    
     try:
         rev = int(rev_str, 16)
     except ValueError:
